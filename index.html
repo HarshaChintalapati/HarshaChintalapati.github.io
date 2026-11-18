@@ -1,0 +1,602 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sai Sri Harsha Chintalapati</title>
+<meta name="description" content="Harsha Chintalapati: software engineer and Computer Science master's student at Stony Brook University. Open to Summer 2027 internships.">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Unbounded:wght@300..700&family=Hanken+Grotesk:wght@400..600&display=swap" rel="stylesheet">
+<style>
+/* Layout idea: the whole page is a live spiral galaxy with a black hole at its core. Each section is a
+   planet in orbit; click one and the camera warps to it while its content opens beside it.
+   One committed dark world, so no light theme. */
+:root{
+  --void:#03040A;
+  --star:#F4F1FF;
+  --dim:#A3A9C2;
+  --faint:#646B86;
+  --glass:rgba(12,14,28,.62);
+  --edge:rgba(170,180,255,.16);
+  --hot:#FFC58A;
+  --font-display:"Unbounded","Arial Black",system-ui,sans-serif;
+  --font-body:"Hanken Grotesk","Segoe UI",system-ui,sans-serif;
+  color-scheme:dark;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{background:var(--void);color:var(--star);font-family:var(--font-body);font-size:15px;line-height:1.6;overflow:hidden;-webkit-font-smoothing:antialiased}
+a{color:inherit}
+:focus-visible{outline:2px solid var(--hot);outline-offset:3px;border-radius:6px}
+#gl,#warp{position:fixed;inset:0;width:100%;height:100%;display:block}
+#warp{pointer-events:none;z-index:1}
+.ui{position:fixed;z-index:3}
+
+/* top bar */
+.who{top:30px;left:36px;max-width:min(520px,70vw);transition:opacity .5s}
+.who h1{margin:0;font-family:var(--font-display);font-weight:500;font-size:clamp(1.25rem,2.4vw,1.9rem);line-height:1.1;letter-spacing:-.01em}
+.who p{margin:8px 0 0;color:var(--dim);font-size:14px}
+.who .live{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:13px;color:var(--star);padding:5px 12px 5px 10px;border-radius:999px;background:rgba(110,243,214,.08);border:1px solid rgba(110,243,214,.25)}
+.who .live i{width:7px;height:7px;border-radius:50%;background:#6EF3D6;box-shadow:0 0 10px #6EF3D6}
+.links{top:34px;right:36px;display:flex;gap:20px;font-size:13.5px}
+.links a,.links button{font:inherit;color:var(--dim);background:none;border:0;padding:0;cursor:pointer;text-decoration:none;transition:color .2s}
+.links a:hover,.links button:hover{color:var(--star)}
+.hint{left:50%;bottom:26px;transform:translateX(-50%);color:var(--faint);font-size:13px;text-align:center;white-space:nowrap;transition:opacity .4s}
+body.focused .hint,body.focused .who{opacity:0;pointer-events:none}
+
+/* planet labels */
+.label{position:fixed;z-index:2;transform:translate(-50%,0);font:inherit;font-family:var(--font-display);font-weight:400;font-size:12.5px;letter-spacing:.02em;color:var(--star);background:rgba(8,10,22,.45);border:1px solid var(--edge);padding:6px 12px 6px 10px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);transition:background .2s,border-color .2s,opacity .3s,transform .2s}
+.label i{width:7px;height:7px;border-radius:50%;background:var(--c);box-shadow:0 0 10px var(--c)}
+.label:hover,.label.hot{background:rgba(20,24,48,.8);border-color:var(--c);transform:translate(-50%,-2px)}
+.label.hide{opacity:0;pointer-events:none}
+body.focused .label{opacity:0;pointer-events:none}
+
+/* panel */
+.panel{top:50%;right:clamp(16px,4vw,56px);transform:translate(24px,-50%);width:min(440px,calc(100vw - 32px));max-height:calc(100vh - 120px);overflow:auto;background:var(--glass);border:1px solid var(--edge);border-radius:20px;padding:28px 28px 22px;backdrop-filter:blur(18px) saturate(1.3);-webkit-backdrop-filter:blur(18px) saturate(1.3);opacity:0;pointer-events:none;transition:opacity .45s ease,transform .45s cubic-bezier(.2,.8,.2,1);box-shadow:0 30px 80px -30px rgba(0,0,0,.8),inset 0 1px 0 rgba(255,255,255,.05)}
+body.focused .panel.show{opacity:1;transform:translate(0,-50%);pointer-events:auto}
+.panel .kicker{display:flex;align-items:center;gap:10px;color:var(--dim);font-size:13px;margin-bottom:10px}
+.panel .kicker i{width:9px;height:9px;border-radius:50%;background:var(--c);box-shadow:0 0 12px var(--c)}
+.panel h2{margin:0 0 16px;font-family:var(--font-display);font-weight:500;font-size:1.65rem;line-height:1.15;letter-spacing:-.015em;outline:none}
+.panel p{margin:0 0 12px;color:var(--dim)}
+.panel p strong{color:var(--star);font-weight:600}
+.entry{padding:14px 0;border-top:1px solid var(--edge)}
+.entry:first-of-type{border-top:0;padding-top:2px}
+.entry .t{display:flex;justify-content:space-between;gap:12px;align-items:baseline}
+.entry .t b{font-weight:600;color:var(--star)}
+.entry .t span{color:var(--faint);font-size:13px;white-space:nowrap;font-variant-numeric:tabular-nums}
+.entry .w{color:var(--dim);font-size:13.5px}
+.entry .s{margin-top:6px;color:var(--star);font-size:14px}
+.entry .stack{margin-top:8px;display:flex;flex-wrap:wrap;gap:6px}
+.entry .stack em{font-style:normal;font-size:12px;color:var(--dim);border:1px solid var(--edge);border-radius:999px;padding:2px 9px}
+.skills{margin:0;display:grid;grid-template-columns:auto 1fr;gap:10px 18px}
+.skills dt{color:var(--faint);font-size:13.5px}
+.skills dd{margin:0;color:var(--star);font-size:14px}
+.row{display:flex;flex-wrap:wrap;gap:10px;margin-top:16px}
+.btn{font:inherit;font-size:13.5px;color:var(--star);background:rgba(255,255,255,.06);border:1px solid var(--edge);border-radius:999px;padding:8px 14px;cursor:pointer;text-decoration:none;transition:background .2s,border-color .2s}
+.btn:hover{background:rgba(255,255,255,.12);border-color:rgba(200,210,255,.35)}
+.btn.main{background:var(--c,#6EF3D6);border-color:transparent;color:#05060D;font-weight:600}
+.panel-nav{display:flex;align-items:center;gap:8px;margin-top:22px;padding-top:16px;border-top:1px solid var(--edge)}
+.panel-nav .back{margin-right:auto}
+.panel-nav .btn{padding:7px 12px}
+
+.toast{left:50%;bottom:64px;transform:translate(-50%,8px);opacity:0;background:var(--star);color:#05060D;padding:8px 16px;border-radius:999px;font-size:13px;font-weight:600;transition:opacity .2s,transform .2s;pointer-events:none;z-index:6}
+.toast.show{opacity:1;transform:translate(-50%,0)}
+
+/* no WebGL fallback: a plain list of sections */
+.fallback{display:none}
+body.no-gl .fallback{display:flex;position:fixed;z-index:3;left:36px;bottom:40px;gap:10px;flex-wrap:wrap}
+body.no-gl{background:radial-gradient(ellipse at 60% 50%,#2a1d4a 0%,#0b0b1c 45%,var(--void) 80%)}
+
+@media (max-width:720px){
+  .who{top:20px;left:18px}
+  .links{top:auto;bottom:18px;right:auto;left:18px;gap:16px}
+  .hint{bottom:52px;font-size:12px}
+  .panel{top:auto;bottom:12px;right:12px;left:12px;width:auto;transform:translate(0,24px);max-height:62vh;padding:22px 20px 16px}
+  body.focused .panel.show{transform:none}
+  .label{font-size:11.5px;padding:5px 10px 5px 8px}
+}
+@media (prefers-reduced-motion: reduce){.panel,.label,.who,.hint{transition:none}}
+</style>
+</head>
+<body>
+<canvas id="gl" aria-hidden="true"></canvas>
+<canvas id="warp" aria-hidden="true"></canvas>
+
+<header class="ui who" id="who">
+  <h1>Sai Sri Harsha Chintalapati</h1>
+  <p>Software engineer. Computer Science master's student at Stony Brook University.</p>
+  <span class="live"><i aria-hidden="true"></i>Open to Summer 2027 internships</span>
+</header>
+<nav class="ui links" aria-label="Contact">
+  <button type="button" data-copy>Email</button>
+  <a href="https://github.com/HarshaChintalapati" target="_blank" rel="noopener">GitHub</a>
+  <a href="https://linkedin.com/in/sai-sri-harsha-chintalapati" target="_blank" rel="noopener">LinkedIn</a>
+</nav>
+<p class="ui hint" id="hint">Click a planet to explore. Drag to look around.</p>
+
+<div id="labels" role="navigation" aria-label="Sections"></div>
+<div class="fallback" id="fallback"></div>
+
+<section class="ui panel" id="panel" aria-live="polite">
+  <div id="panel-body"></div>
+  <div class="panel-nav">
+    <button class="btn back" type="button" id="back">Back to the galaxy</button>
+    <button class="btn" type="button" id="prev" aria-label="Previous planet">Prev</button>
+    <button class="btn" type="button" id="next" aria-label="Next planet">Next</button>
+  </div>
+</section>
+<div class="ui toast" id="toast" role="status" aria-live="polite"></div>
+
+<!-- section content, shown in the panel -->
+<template id="c-about">
+  <h2 tabindex="-1">Hey, I'm Harsha.</h2>
+  <p>I build backend systems that stay fast and reliable, even when things break.</p>
+  <p>Right now I'm doing my master's in Computer Science at <strong>Stony Brook University</strong>. Before that I spent over a year at <strong>Digit Insurance</strong>, building backend services for a platform that serves more than a million members.</p>
+  <p>I'm looking for a <strong>Summer 2027</strong> software engineering internship in backend, distributed systems or AI.</p>
+  <div class="row"><button class="btn main" type="button" data-copy>Copy my email</button><a class="btn" href="https://linkedin.com/in/sai-sri-harsha-chintalapati" target="_blank" rel="noopener">LinkedIn</a><a class="btn" href="https://github.com/HarshaChintalapati" target="_blank" rel="noopener">GitHub</a></div>
+</template>
+<template id="c-experience">
+  <h2 tabindex="-1">Where I've worked</h2>
+  <div class="entry"><div class="t"><b>Digit Insurance</b><span>Jul 2024 – Nov 2025</span></div><div class="w">Software Engineer, Hyderabad</div>
+    <div class="s">Built backend services for a life insurance platform serving 1M+ members. Cut time to fix outages by 25% and failed releases by 80%.</div></div>
+  <div class="entry"><div class="t"><b>Cultuzz</b><span>Jun – Nov 2023</span></div><div class="w">Software Engineer Intern, Visakhapatnam</div>
+    <div class="s">Built a rate limiter that decides in under 5 ms at 10,000 requests a second, so no single client can overload the servers.</div></div>
+  <div class="entry"><div class="t"><b>TrueCaptcha.org</b><span>Feb – Oct 2022</span></div><div class="w">Founding Software Engineer, remote</div>
+    <div class="s">Built the backend from scratch and scaled it to 600K+ requests a day, while making it 14% more accurate and 15% cheaper to run.</div></div>
+</template>
+<template id="c-projects">
+  <h2 tabindex="-1">Things I've built</h2>
+  <div class="entry"><div class="t"><b>NebulaDB</b><span>Distributed database</span></div>
+    <div class="s">A database spread across many machines. I crashed its leader 100 times during live writes and it never lost anything it had confirmed.</div>
+    <div class="stack"><em>Java</em><em>gRPC</em><em>Raft</em><em>Docker</em></div></div>
+  <div class="entry"><div class="t"><b>Mercury</b><span>AI code reviewer</span></div>
+    <div class="s">Reviews a pull request and leaves comments in 10 to 15 seconds, for about two cents, using a team of AI agents.</div>
+    <div class="stack"><em>Python</em><em>FastAPI</em><em>Claude API</em><em>ChromaDB</em><em>LangChain</em></div></div>
+  <div class="row"><a class="btn" href="https://github.com/HarshaChintalapati" target="_blank" rel="noopener">See my GitHub</a></div>
+</template>
+<template id="c-education">
+  <h2 tabindex="-1">Education</h2>
+  <div class="entry"><div class="t"><b>Stony Brook University</b><span>2026 – 2027</span></div><div class="w">Master of Science, Computer Science</div>
+    <div class="s">Stony Brook, New York. Graduating December 2027.</div></div>
+  <div class="entry"><div class="t"><b>JNTU</b><span>2020 – 2024</span></div><div class="w">Bachelor of Technology, Computer Science (Honors)</div>
+    <div class="s">Jawaharlal Nehru Technological University, Visakhapatnam, India.</div></div>
+</template>
+<template id="c-skills">
+  <h2 tabindex="-1">What I work with</h2>
+  <dl class="skills">
+    <dt>Languages</dt><dd>Java, Python, C++, Go, TypeScript, SQL</dd>
+    <dt>Backend</dt><dd>Spring Boot, FastAPI, Node.js, gRPC, microservices</dd>
+    <dt>Systems</dt><dd>Distributed systems, Raft, Kafka, Redis, concurrency</dd>
+    <dt>Data</dt><dd>PostgreSQL, MongoDB, DynamoDB, Elasticsearch, Spark</dd>
+    <dt>AI</dt><dd>PyTorch, RAG, LangChain, LangGraph, AI agents, MCP</dd>
+    <dt>Cloud</dt><dd>AWS, GCP, Azure, Docker, Kubernetes, CI/CD</dd>
+  </dl>
+</template>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(() => {
+"use strict";
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+const small = innerWidth < 720;
+const EMAIL = "saisriharshachintalapati@gmail.com";
+
+const PLANETS = [
+  {k:"about",      name:"About",      color:"#6EF3D6", r:3.0,  size:.26, a0:0.4},
+  {k:"experience", name:"Experience", color:"#FFB35C", r:4.5,  size:.30, a0:2.2},
+  {k:"projects",   name:"Projects",   color:"#A98BFF", r:6.0,  size:.28, a0:4.1},
+  {k:"education",  name:"Education",  color:"#6CC4FF", r:7.5,  size:.24, a0:5.6},
+  {k:"skills",     name:"Skills",     color:"#FF7AA8", r:9.0,  size:.22, a0:1.2},
+];
+
+/* ---------- toast + email ---------- */
+const toastEl = document.getElementById("toast"); let tt;
+function toast(m){ toastEl.textContent = m; toastEl.classList.add("show"); clearTimeout(tt); tt = setTimeout(() => toastEl.classList.remove("show"), 2200); }
+document.addEventListener("click", async e => {
+  const b = e.target.closest("[data-copy]"); if (!b) return;
+  try { await navigator.clipboard.writeText(EMAIL); toast("Email copied"); } catch(err){ toast(EMAIL); }
+});
+
+/* ---------- panel ---------- */
+const panel = document.getElementById("panel"), pbody = document.getElementById("panel-body");
+let focusIdx = -1;
+function fillPanel(i){
+  const p = PLANETS[i];
+  pbody.innerHTML = `<div class="kicker"><i style="--c:${p.color}"></i>${p.name}</div>` + document.getElementById("c-"+p.k).innerHTML;
+  panel.style.setProperty("--c", p.color);
+}
+
+/* ---------- WebGL check ---------- */
+if (!window.THREE || !(() => { try { const c = document.createElement("canvas"); return !!(c.getContext("webgl2") || c.getContext("webgl")); } catch(e){ return false; } })()) {
+  document.body.classList.add("no-gl");
+  document.getElementById("hint").textContent = "Pick a section.";
+  const fb = document.getElementById("fallback");
+  PLANETS.forEach((p,i) => { const b = document.createElement("button"); b.className = "btn"; b.textContent = p.name; b.style.setProperty("--c", p.color);
+    b.addEventListener("click", () => { focusIdx = i; fillPanel(i); panel.classList.add("show"); document.body.classList.add("focused"); }); fb.appendChild(b); });
+  document.getElementById("back").addEventListener("click", () => { document.body.classList.remove("focused"); panel.classList.remove("show"); });
+  return;
+}
+
+/* =====================================================================
+   SCENE
+   ===================================================================== */
+const canvas = document.getElementById("gl");
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true, alpha:false, powerPreference:"high-performance"});
+renderer.setPixelRatio(Math.min(devicePixelRatio || 1, small ? 1.5 : 1.75));
+renderer.setClearColor(0x03040A, 1);
+const scene = new THREE.Scene();
+const camera = new THREE.PerspectiveCamera(55, 1, 0.05, 400);
+const clock = new THREE.Clock();
+let uPixel = renderer.getPixelRatio();
+
+/* ---- soft round sprite texture for glows ---- */
+function glowTex(inner, outer){
+  const c = document.createElement("canvas"); c.width = c.height = 128;
+  const g = c.getContext("2d"), grd = g.createRadialGradient(64,64,0,64,64,64);
+  grd.addColorStop(0, inner); grd.addColorStop(.25, outer); grd.addColorStop(1, "rgba(0,0,0,0)");
+  g.fillStyle = grd; g.fillRect(0,0,128,128);
+  const t = new THREE.CanvasTexture(c); return t;
+}
+
+/* ---- distant stars ---- */
+{
+  const n = small ? 2500 : 5000, pos = new Float32Array(n*3), sz = new Float32Array(n), tw = new Float32Array(n), col = new Float32Array(n*3);
+  for (let i=0;i<n;i++){
+    const u = Math.random()*2-1, th = Math.random()*Math.PI*2, r = 90 + Math.random()*120, s = Math.sqrt(1-u*u);
+    pos.set([r*s*Math.cos(th), r*u, r*s*Math.sin(th)], i*3);
+    sz[i] = Math.random() < .03 ? 2.6 + Math.random()*2 : 0.8 + Math.random()*1.4;
+    tw[i] = Math.random()*6.28;
+    const warm = Math.random(); const c = warm < .15 ? [1,.82,.68] : warm < .35 ? [.7,.8,1] : [1,1,1];
+    col.set(c, i*3);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(pos,3));
+  g.setAttribute("aSize", new THREE.BufferAttribute(sz,1));
+  g.setAttribute("aTw", new THREE.BufferAttribute(tw,1));
+  g.setAttribute("aColor", new THREE.BufferAttribute(col,3));
+  const m = new THREE.ShaderMaterial({
+    uniforms:{uTime:{value:0}, uPixel:{value:uPixel}},
+    vertexShader:`attribute float aSize; attribute float aTw; attribute vec3 aColor; uniform float uTime; uniform float uPixel; varying float vA; varying vec3 vC;
+      void main(){ vec4 mv = modelViewMatrix*vec4(position,1.0); gl_Position = projectionMatrix*mv; gl_PointSize = aSize*uPixel; vA = .55+.45*sin(uTime*1.3+aTw); vC = aColor; }`,
+    fragmentShader:`varying float vA; varying vec3 vC; void main(){ float d = length(gl_PointCoord-.5); float a = smoothstep(.5,0.,d); gl_FragColor = vec4(vC, a*vA); }`,
+    transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
+  const stars = new THREE.Points(g, m); stars.userData.mat = m; scene.add(stars);
+  scene.userData.stars = m;
+}
+
+/* ---- the galaxy ---- */
+const galaxy = new THREE.Group(); galaxy.rotation.z = 0.08; scene.add(galaxy);
+const galMat = new THREE.ShaderMaterial({
+  uniforms:{uTime:{value:0}, uPixel:{value:uPixel}},
+  vertexShader:`attribute float aSize; attribute vec3 aColor; attribute float aR; attribute float aAng; attribute float aY;
+    uniform float uTime; uniform float uPixel; varying vec3 vC; varying float vA;
+    void main(){
+      float ang = aAng + uTime*(0.55/(0.6+aR));
+      vec3 p = vec3(cos(ang)*aR, aY, sin(ang)*aR);
+      vec4 mv = modelViewMatrix*vec4(p,1.0);
+      gl_Position = projectionMatrix*mv;
+      gl_PointSize = clamp(aSize*uPixel*(28.0/-mv.z), 0.0, 12.0*uPixel);
+      vC = aColor; vA = smoothstep(0.8, 3.0, -mv.z);
+    }`,
+  fragmentShader:`varying vec3 vC; varying float vA; void main(){ float d = length(gl_PointCoord-.5); float a = pow(smoothstep(.5,0.,d),1.7); gl_FragColor = vec4(vC, a*vA); }`,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending });
+{
+  const N = small ? 16000 : 38000, R = 11, ARMS = 3;
+  const aR = new Float32Array(N), aAng = new Float32Array(N), aY = new Float32Array(N), aSize = new Float32Array(N), aColor = new Float32Array(N*3);
+  const inner = new THREE.Color("#FFD2A1"), mid = new THREE.Color("#FF8FB8"), outer = new THREE.Color("#5E7BFF"), cyan = new THREE.Color("#7FE7FF");
+  const tmp = new THREE.Color();
+  for (let i=0;i<N;i++){
+    const bulge = i < N*.09;
+    let r, ang, y;
+    if (bulge){
+      r = Math.pow(Math.random(), 1.4)*2.4 + 1.5; ang = Math.random()*Math.PI*2; y = (Math.random()-.5)*.6*(1-r/4.2);
+    } else {
+      r = Math.pow(Math.random(), 1.25)*(R-1.6) + 2.2;
+      const branch = (i % ARMS)/ARMS*Math.PI*2, spin = r*.62;
+      const sc = Math.pow(Math.random(), 2.4)*(Math.random()<.5?-1:1)*.55*(1+r*.08);
+      ang = branch + spin + sc/ Math.max(r,.8)*2.2;
+      r += (Math.pow(Math.random(),3)*(Math.random()<.5?-1:1))*.7;
+      y = (Math.pow(Math.random(),2.2)*(Math.random()<.5?-1:1))*.35*(1 - r/(R*1.4));
+    }
+    aR[i] = Math.max(.5, r); aAng[i] = ang; aY[i] = y;
+    const f = Math.min(1, r/R);
+    if (f < .35) tmp.copy(inner).lerp(mid, f/.35); else tmp.copy(mid).lerp(outer, (f-.35)/.65);
+    if (Math.random() < .06) tmp.copy(cyan);
+    const bright = bulge ? .5 + Math.random()*.25 : .7 + Math.random()*.35;
+    aColor.set([tmp.r*bright, tmp.g*bright, tmp.b*bright], i*3);
+    aSize[i] = bulge ? 1.2 + Math.random()*1.4 : (Math.random() < .015 ? 4 + Math.random()*4 : .9 + Math.random()*1.8);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.BufferAttribute(new Float32Array(N*3),3));
+  g.setAttribute("aR", new THREE.BufferAttribute(aR,1));
+  g.setAttribute("aAng", new THREE.BufferAttribute(aAng,1));
+  g.setAttribute("aY", new THREE.BufferAttribute(aY,1));
+  g.setAttribute("aSize", new THREE.BufferAttribute(aSize,1));
+  g.setAttribute("aColor", new THREE.BufferAttribute(aColor,3));
+  g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), R+2);
+  galaxy.add(new THREE.Points(g, galMat));
+  // nebula haze
+  const haze = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex("rgba(255,190,150,.55)","rgba(190,90,170,.16)"), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true}));
+  haze.scale.set(10,10,1); haze.material.opacity = .55; galaxy.add(haze);
+}
+
+/* ---- black hole: event horizon, accretion disk, lensed photon ring ---- */
+const hole = new THREE.Group(); galaxy.add(hole);
+const horizon = new THREE.Mesh(new THREE.SphereGeometry(.6, 48, 32), new THREE.MeshBasicMaterial({color:0x000000}));
+hole.add(horizon);
+const diskMat = new THREE.ShaderMaterial({
+  uniforms:{uTime:{value:0}},
+  vertexShader:`varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`uniform float uTime; varying vec2 vP;
+    float h(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7)))*43758.5453); }
+    float n(vec2 p){ vec2 i=floor(p), f=fract(p); f=f*f*(3.-2.*f); return mix(mix(h(i),h(i+vec2(1,0)),f.x), mix(h(i+vec2(0,1)),h(i+vec2(1,1)),f.x), f.y); }
+    void main(){
+      float r = length(vP), a = atan(vP.y, vP.x);
+      float t = (r - .72)/1.9;                       // 0 at inner edge, 1 at outer
+      if (t < 0. || t > 1.) discard;
+      float swirl = a + uTime*(1.4/(r*r)) ;
+      float streaks = n(vec2(swirl*6., r*9.)) *.6 + n(vec2(swirl*14., r*22.))*.4;
+      float glow = pow(1.-t, 2.2);
+      float edge = smoothstep(0., .04, t) * (1.-smoothstep(.75, 1., t));
+      float doppler = .55 + .45*cos(a - 2.6);       // one side brighter, as the gas comes toward us
+      vec3 hot = mix(vec3(1.,.97,.9), vec3(1.,.62,.25), smoothstep(0.,.35,t));
+      hot = mix(hot, vec3(.75,.18,.08), smoothstep(.35,1.,t));
+      float I = glow*(.55+.75*streaks)*doppler*edge*2.6;
+      gl_FragColor = vec4(hot*I, I);
+    }`,
+  transparent:true, depthWrite:false, blending:THREE.AdditiveBlending, side:THREE.DoubleSide });
+const disk = new THREE.Mesh(new THREE.RingGeometry(.72, 2.62, 160, 1), diskMat);
+disk.rotation.x = -Math.PI/2; hole.add(disk);
+const ringMat = new THREE.ShaderMaterial({
+  uniforms:{uTime:{value:0}},
+  vertexShader:`varying vec2 vP; void main(){ vP = position.xy; gl_Position = projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
+  fragmentShader:`uniform float uTime; varying vec2 vP;
+    void main(){
+      float r = length(vP), a = atan(vP.y, vP.x);
+      float photon = exp(-pow((r-.665)/.022, 2.))*1.8;                  // razor-thin photon ring
+      float lensed = exp(-pow((r-.86)/.13, 2.)) * (.35 + .65*pow(abs(sin(a)),1.5)); // light from the far side of the disk, bent over the top and under the bottom
+      float halo = exp(-max(r-.64,0.)*3.0)*.2*step(.63,r);
+      float flick = .9 + .1*sin(uTime*2. + a*3.);
+      vec3 c = vec3(1.,.86,.66)*photon + vec3(1.,.66,.33)*lensed*flick + vec3(1.,.55,.35)*halo;
+      float I = max(max(c.r,c.g),c.b);
+      gl_FragColor = vec4(c, I);
+    }`,
+  transparent:true, depthWrite:false, depthTest:false, blending:THREE.AdditiveBlending });
+const ring = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 4.4), ringMat);
+ring.renderOrder = 5; hole.add(ring);
+
+/* ---- planets ---- */
+const planetMeshes = [];
+const labelsEl = document.getElementById("labels");
+PLANETS.forEach((p, i) => {
+  const col = new THREE.Color(p.color);
+  const m = new THREE.ShaderMaterial({
+    uniforms:{uColor:{value:col}, uHot:{value:0}},
+    vertexShader:`varying vec3 vN; varying vec3 vW; void main(){ vN = normalize(normalMatrix*normal); vec4 w = modelViewMatrix*vec4(position,1.0); vW = w.xyz; gl_Position = projectionMatrix*w; }`,
+    fragmentShader:`uniform vec3 uColor; uniform float uHot; varying vec3 vN; varying vec3 vW;
+      void main(){ vec3 L = normalize(vec3(-.6,.3,.7)); float d = max(dot(vN,L),0.); float rim = pow(1.-max(dot(vN, normalize(-vW)),0.), 2.5);
+        vec3 c = uColor*(.18 + .9*d) + uColor*rim*(1.2+uHot) + vec3(1.)*pow(d,12.)*.25; gl_FragColor = vec4(c,1.); }` });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(p.size, 40, 28), m);
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({map:glowTex(p.color, p.color+"33"), blending:THREE.AdditiveBlending, depthWrite:false, transparent:true, opacity:.75}));
+  glow.scale.set(p.size*7, p.size*7, 1); mesh.add(glow);
+  mesh.userData = {i, glow};
+  galaxy.add(mesh); planetMeshes.push(mesh);
+  // orbit line
+  const pts = []; for (let k=0;k<=160;k++){ const a = k/160*Math.PI*2; pts.push(new THREE.Vector3(Math.cos(a)*p.r, 0, Math.sin(a)*p.r)); }
+  const ol = new THREE.Line(new THREE.BufferGeometry().setFromPoints(pts), new THREE.LineBasicMaterial({color:col, transparent:true, opacity:.10, depthWrite:false}));
+  galaxy.add(ol); p.orbit = ol;
+  // HTML label
+  const b = document.createElement("button");
+  b.type = "button"; b.className = "label"; b.style.setProperty("--c", p.color);
+  b.innerHTML = `<i aria-hidden="true"></i>${p.name}`;
+  b.setAttribute("aria-label", `Fly to ${p.name}`);
+  b.addEventListener("click", () => flyTo(i));
+  b.addEventListener("pointerenter", () => setHot(i)); b.addEventListener("pointerleave", () => setHot(-1));
+  b.addEventListener("focus", () => setHot(i)); b.addEventListener("blur", () => setHot(-1));
+  labelsEl.appendChild(b); p.label = b;
+});
+let hot = -1;
+function setHot(i){
+  hot = i;
+  PLANETS.forEach((p,k) => { p.label.classList.toggle("hot", k===i); p.orbit.material.opacity = k===i ? .45 : .10; planetMeshes[k].material.uniforms.uHot.value = k===i ? 1 : 0; });
+  canvas.style.cursor = i >= 0 ? "pointer" : (dragging ? "grabbing" : "grab");
+}
+
+/* =====================================================================
+   CAMERA: orbit view, drag, and warp-to-planet
+   ===================================================================== */
+const view = {az:-0.5, el:0.42, dist: small ? 19 : 15.5};
+const look = new THREE.Vector3();
+const camPos = new THREE.Vector3(0, 60, 120);          // starts far out for the arrival
+const camLook = new THREE.Vector3();
+let mode = "home";                                       // home | fly | focus
+let flyT = 0, flyFrom = new THREE.Vector3(), flyLookFrom = new THREE.Vector3();
+let warp = reduce ? 0 : 1;                               // 0..1, drives the streaks
+const startTime = performance.now();
+
+function homeTarget(out){
+  const t = (performance.now() - startTime)/1000;
+  const az = view.az + (reduce ? 0 : t*.012) + par.x*.08, el = view.el + par.y*.05;
+  out.set(Math.cos(az)*Math.cos(el)*view.dist, Math.sin(el)*view.dist, Math.sin(az)*Math.cos(el)*view.dist);
+  return out;
+}
+const planetWorld = i => planetMeshes[i].getWorldPosition(new THREE.Vector3());
+function focusTarget(i, outPos, outLook){
+  const p = planetWorld(i);
+  const out = p.clone().setY(0).normalize();
+  const side = new THREE.Vector3(-out.z, 0, out.x);
+  // stand a little outside and above the planet, and shift the view so the planet sits left of the panel
+  const d = PLANETS[i].size*11;
+  outPos.copy(p).addScaledVector(out, d*.75).addScaledVector(side, small ? 0 : -d*.55).add(new THREE.Vector3(0, d*.32, 0));
+  outLook.copy(p).addScaledVector(side, small ? 0 : -d*.42).add(new THREE.Vector3(0, small ? -d*.28 : 0, 0));
+}
+function flyTo(i){
+  if (i < 0) return;
+  focusIdx = i; mode = "fly"; flyT = 0;
+  flyFrom.copy(camPos); flyLookFrom.copy(camLook);
+  fillPanel(i);
+  document.body.classList.add("focused");
+  panel.classList.remove("show");
+  setHot(-1);
+  try { history.replaceState(null, "", "#"+PLANETS[i].k); } catch(e){}
+}
+function goHome(){
+  mode = "fly"; focusIdx = -1; flyT = 0;
+  flyFrom.copy(camPos); flyLookFrom.copy(camLook);
+  document.body.classList.remove("focused"); panel.classList.remove("show");
+  try { history.replaceState(null, "", "#"); } catch(e){}
+}
+document.getElementById("back").addEventListener("click", goHome);
+document.getElementById("next").addEventListener("click", () => flyTo((focusIdx+1)%PLANETS.length));
+document.getElementById("prev").addEventListener("click", () => flyTo((focusIdx-1+PLANETS.length)%PLANETS.length));
+addEventListener("keydown", e => {
+  if (e.key === "Escape" && focusIdx >= 0) goHome();
+  if (focusIdx >= 0 && e.key === "ArrowRight") flyTo((focusIdx+1)%PLANETS.length);
+  if (focusIdx >= 0 && e.key === "ArrowLeft") flyTo((focusIdx-1+PLANETS.length)%PLANETS.length);
+});
+
+/* pointer: parallax, drag to rotate, hover planets */
+const par = {x:0, y:0, tx:0, ty:0};
+let dragging = false, dragX = 0, dragY = 0, moved = 0;
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function pick(x, y){
+  ndc.set(x/innerWidth*2-1, -(y/innerHeight)*2+1);
+  ray.setFromCamera(ndc, camera);
+  const hits = ray.intersectObjects(planetMeshes, false);
+  if (hits.length) return hits[0].object.userData.i;
+  // generous hit area: nearest planet on screen within 28px
+  let best = -1, bd = 28;
+  planetMeshes.forEach((m,i) => { const s = toScreen(planetWorld(i)); if (s.z < 1){ const d = Math.hypot(s.x-x, s.y-y); if (d < bd){ bd = d; best = i; } } });
+  return best;
+}
+canvas.addEventListener("pointerdown", e => { dragging = true; moved = 0; dragX = e.clientX; dragY = e.clientY; canvas.setPointerCapture(e.pointerId); canvas.style.cursor = "grabbing"; });
+canvas.addEventListener("pointermove", e => {
+  par.tx = e.clientX/innerWidth - .5; par.ty = e.clientY/innerHeight - .5;
+  if (dragging && mode === "home"){
+    const dx = e.clientX - dragX, dy = e.clientY - dragY; moved += Math.abs(dx) + Math.abs(dy);
+    view.az += dx*.005; view.el = Math.max(.08, Math.min(1.25, view.el + dy*.004));
+    dragX = e.clientX; dragY = e.clientY;
+  } else if (!dragging && mode === "home") {
+    const i = pick(e.clientX, e.clientY); if (i !== hot) setHot(i);
+  }
+});
+canvas.addEventListener("pointerup", e => {
+  dragging = false; canvas.style.cursor = hot >= 0 ? "pointer" : "grab";
+  if (moved < 6){
+    const i = pick(e.clientX, e.clientY);
+    if (i >= 0) flyTo(i); else if (focusIdx >= 0) goHome();
+  }
+});
+canvas.addEventListener("wheel", e => { if (mode !== "home") return; e.preventDefault(); view.dist = Math.max(7, Math.min(30, view.dist * (1 + e.deltaY*.001))); }, {passive:false});
+canvas.style.cursor = "grab";
+
+/* ---------- labels follow their planets ---------- */
+const v3 = new THREE.Vector3();
+function toScreen(w){ v3.copy(w).project(camera); return {x:(v3.x*.5+.5)*innerWidth, y:(-v3.y*.5+.5)*innerHeight, z:v3.z}; }
+
+/* ---------- warp streaks (2D overlay) ---------- */
+const wcv = document.getElementById("warp"), wctx = wcv.getContext("2d");
+const streaks = Array.from({length: small ? 140 : 260}, () => ({a:Math.random()*Math.PI*2, d:Math.random(), s:.4+Math.random()*.9}));
+function drawWarp(dt){
+  wctx.clearRect(0,0,innerWidth,innerHeight);
+  if (warp < .02) return;
+  const cx = innerWidth/2, cy = innerHeight/2, R = Math.hypot(cx, cy);
+  wctx.lineCap = "round";
+  for (const s of streaks){
+    s.d += dt*s.s*(.6 + warp*2.6); if (s.d > 1) { s.d = Math.random()*.15; s.a = Math.random()*Math.PI*2; }
+    const r1 = Math.pow(s.d, 1.6)*R, r2 = r1 + (20 + 260*warp)*s.d;
+    const al = warp*Math.min(1, s.d*2.2)*.75;
+    wctx.strokeStyle = `rgba(${200+Math.round(55*s.s)},${215},255,${al})`;
+    wctx.lineWidth = .6 + s.d*1.6;
+    wctx.beginPath(); wctx.moveTo(cx + Math.cos(s.a)*r1, cy + Math.sin(s.a)*r1); wctx.lineTo(cx + Math.cos(s.a)*r2, cy + Math.sin(s.a)*r2); wctx.stroke();
+  }
+}
+
+/* ---------- resize ---------- */
+function resize(){
+  const w = innerWidth, h = innerHeight;
+  renderer.setSize(w, h, false);
+  camera.aspect = w/h; camera.fov = w < h ? 68 : 55; camera.updateProjectionMatrix();
+  const d = Math.min(devicePixelRatio || 1, 2); wcv.width = w*d; wcv.height = h*d; wctx.setTransform(d,0,0,d,0,0);
+}
+addEventListener("resize", resize); resize();
+
+/* =====================================================================
+   LOOP
+   ===================================================================== */
+const ease = t => t < .5 ? 4*t*t*t : 1 - Math.pow(-2*t+2, 3)/2;
+const tmpPos = new THREE.Vector3(), tmpLook = new THREE.Vector3();
+let arrived = reduce; const arriveFrom = new THREE.Vector3(0, 60, 120), ARRIVE = 3.4;
+function frame(){
+  const dt = Math.min(clock.getDelta(), .05);
+  const time = clock.elapsedTime;
+  const spin = reduce ? 0 : time;
+  galMat.uniforms.uTime.value = spin*.35;
+  diskMat.uniforms.uTime.value = spin; ringMat.uniforms.uTime.value = spin;
+  scene.userData.stars.uniforms.uTime.value = time;
+
+  // planets orbit slowly
+  PLANETS.forEach((p,i) => {
+    const a = p.a0 + (reduce ? 0 : time*(.11/p.r));
+    planetMeshes[i].position.set(Math.cos(a)*p.r, 0, Math.sin(a)*p.r);
+    planetMeshes[i].rotation.y += dt*.4;
+  });
+
+  par.x += (par.tx - par.x)*.05; par.y += (par.ty - par.y)*.05;
+
+  if (mode === "home"){
+    homeTarget(tmpPos); tmpLook.set(0,0,0);
+    if (!arrived){
+      const k = Math.min(1, (performance.now() - startTime)/1000/ARRIVE), e = 1 - Math.pow(1-k, 3);
+      camPos.lerpVectors(arriveFrom, tmpPos, e); camLook.set(0,0,0);
+      warp = Math.pow(1-k, 1.5)*.95;
+      if (k >= 1) arrived = true;
+    } else {
+      camPos.lerp(tmpPos, .06); camLook.lerp(tmpLook, .08);
+      warp += (0 - warp)*.1;
+    }
+  } else if (mode === "fly"){
+    flyT = Math.min(1, flyT + dt/(reduce ? .01 : 1.5));
+    const e = ease(flyT);
+    if (focusIdx >= 0) focusTarget(focusIdx, tmpPos, tmpLook); else { homeTarget(tmpPos); tmpLook.set(0,0,0); }
+    // arc the path upward so the camera sweeps over the galaxy instead of through it
+    camPos.lerpVectors(flyFrom, tmpPos, e); camPos.y += Math.sin(e*Math.PI)*2.2;
+    camLook.lerpVectors(flyLookFrom, tmpLook, e);
+    warp = reduce ? 0 : Math.sin(flyT*Math.PI);
+    if (flyT >= 1){
+      if (focusIdx >= 0){ mode = "focus"; panel.classList.add("show"); const h = panel.querySelector("h2"); h && h.focus({preventScroll:true}); }
+      else { mode = "home"; arrived = true; }
+    }
+  } else if (mode === "focus"){
+    focusTarget(focusIdx, tmpPos, tmpLook);
+    camPos.lerp(tmpPos, .1); camLook.lerp(tmpLook, .1);
+    warp += (0 - warp)*.1;
+  }
+  camera.position.copy(camPos); camera.lookAt(camLook);
+  ring.quaternion.copy(camera.quaternion);              // the lensed ring always faces you
+
+  // labels
+  PLANETS.forEach((p,i) => {
+    const w = planetWorld(i), s = toScreen(w);
+    const behind = s.z > 1 || s.x < -40 || s.x > innerWidth+40 || s.y < -40 || s.y > innerHeight+40;
+    p.label.classList.toggle("hide", behind);
+    if (!behind){
+      const dist = camera.position.distanceTo(w), off = (p.size/dist)*innerHeight*1.1 + 10;
+      p.label.style.left = s.x + "px"; p.label.style.top = (s.y + off) + "px";
+    }
+  });
+
+  renderer.render(scene, camera);
+  drawWarp(dt);
+}
+function loop(){ if (!document.hidden) frame(); requestAnimationFrame(loop); }
+requestAnimationFrame(loop);
+
+// deep link: #projects flies straight there after the arrival
+const startK = location.hash.slice(1), si = PLANETS.findIndex(p => p.k === startK);
+if (si >= 0) setTimeout(() => flyTo(si), reduce ? 0 : 1800);
+})();
+</script>
+</body>
+</html>
